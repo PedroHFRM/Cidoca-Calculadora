@@ -243,6 +243,12 @@
         </div>
 
         <div class="card">
+          <h2>Sugestão de preços · Refrigerante</h2>
+          <p class="lead">Complemento com o mesmo desconto dos salgados.</p>
+          <div id="promoRefri"></div>
+        </div>
+
+        <div class="card">
           <h2>Simulador de desconto</h2>
           <p class="lead">Teste qualquer preço e desconto e veja quanto fica por salgado.</p>
           <div class="row2">
@@ -275,7 +281,7 @@
         </div>
         <div class="card">
           <h2>Complementos</h2>
-          <p class="lead">Cadastrados à parte no iFood, sempre pelo preço normal (sem desconto).</p>
+          <p class="lead" id="compLead">Cadastrados à parte no iFood.</p>
           <table id="tabComp2" class="tp"></table>
         </div>
         <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -439,13 +445,28 @@ function renderTabela(T,v){
     if (promo) return `<tr><td class="nm">${nome}</td><td class="cad">${brl(r.de)}</td><td class="cli"><s>${brl(r.de)}</s>${brl(r.por)}</td><td class="rec">${brl(sobra(r.por,T))}<small>${brl(sobra(r.por,T)/r.n)}/un.</small></td></tr>`;
     return `<tr><td class="nm">${nome}</td><td class="cad">${brl(r.normal)}</td><td class="cli">${brl(r.normal/r.n)}</td><td class="rec">${brl(sobra(r.normal,T))}<small>${brl(sobra(r.normal,T)/r.n)}/un.</small></td></tr>`;
   }).join('');
-  $('tabComp2').innerHTML = rfv > 0
-    ? `<tr><th>Complemento</th><th class="cad">Cadastrar no iFood</th><th></th><th>Cidoca recebe</th></tr><tr><td class="nm"><b>Refrigerante</b><small>sem desconto</small></td><td class="cad">${brl(up10(precoPara(rfv,T)))}</td><td></td><td class="rec">${brl(sobra(up10(precoPara(rfv,T)),T))}</td></tr>`
-    : '<tr><td class="vaziolinha">Preencha o valor líquido do refrigerante em Parâmetros para ver o preço.</td></tr>';
+  if (rfv > 0){
+    const sr = sugestao(rfv, T, d);
+    $('compLead').textContent = promo ? `Cadastrados à parte no iFood, com promoção de ${descSug}%.` : 'Cadastrados à parte no iFood, sem desconto.';
+    $('tabComp2').innerHTML = (promo
+      ? '<tr><th>Complemento</th><th class="cad">Cadastrar no iFood</th><th>Cliente paga</th><th>Cidoca recebe</th></tr>'
+      : '<tr><th>Complemento</th><th class="cad">Cadastrar no iFood</th><th></th><th>Cidoca recebe</th></tr>')
+      + (promo
+      ? `<tr><td class="nm"><b>Refrigerante</b><small>−${descSug}%</small></td><td class="cad">${brl(sr.de)}</td><td class="cli"><s>${brl(sr.de)}</s>${brl(sr.por)}</td><td class="rec">${brl(sobra(sr.por,T))}</td></tr>`
+      : `<tr><td class="nm"><b>Refrigerante</b></td><td class="cad">${brl(sr.normal)}</td><td></td><td class="rec">${brl(sobra(sr.normal,T))}</td></tr>`);
+  } else {
+    $('compLead').textContent = 'Cadastrados à parte no iFood.';
+    $('tabComp2').innerHTML = '<tr><td class="vaziolinha">Preencha o valor líquido do refrigerante em Parâmetros para ver o preço.</td></tr>';
+  }
 }
 function renderRefri(T){
   const rfv = num('refri');
-  if (!(rfv > 0)){ $('refriConteudo').innerHTML = '<p class="hint" style="margin:0">Preencha o valor líquido do refrigerante em Parâmetros (opcional).</p>'; return; }
+  if (!(rfv > 0)){
+    const msg = '<p class="hint" style="margin:0">Preencha o valor líquido do refrigerante em Parâmetros (opcional).</p>';
+    $('refriConteudo').innerHTML = msg; $('promoRefri').innerHTML = msg; return;
+  }
+  const sr = sugestao(rfv, T, descSug/100);
+  $('promoRefri').innerHTML = `<div class="kpis two"><div class="kpi alt"><div class="lbl">Sem promoção</div><div class="val">${brl(sr.normal)}</div><div class="sub">Cidoca recebe ${brl(sobra(sr.normal,T))}</div></div><div class="kpi hero"><div class="lbl">Com promoção</div><div class="promo"><span class="de">de ${brl(sr.de)}</span><span class="por">por ${brl(sr.por)}</span><span class="tag">−${descSug}%</span></div><div class="sub">cadastre ${brl(sr.de)} com ${descSug}% de desconto · Cidoca recebe ${brl(sobra(sr.por,T))}</div></div></div>`;
   const P = precoPara(rfv,T), R = up10(P);
   $('refriConteudo').innerHTML = `<div class="kpis two"><div class="kpi alt"><div class="lbl">Cadastrar no iFood</div><div class="val">${brl(R)}</div><div class="sub">preço mínimo exato: ${brl(P)}</div></div><div class="kpi"><div class="lbl">Cidoca recebe</div><div class="val" style="color:var(--good)">${brl(sobra(R,T))}</div><div class="sub">depois das taxas do iFood</div></div></div>`;
 }
@@ -482,7 +503,8 @@ $('copiar').onclick = async () => {
     const nome = r.n===1 ? 'Unitário' : r.n+' salgados';
     linhas.push(promo ? `${nome}: cadastrar ${brl(r.de)} → cliente paga ${brl(r.por)}` : `${nome}: ${brl(r.normal)}`);
   });
-  if (rfv > 0) linhas.push('', `Refrigerante (complemento): ${brl(up10(precoPara(rfv,T)))}`);
+  if (rfv > 0){ const sr = sugestao(rfv, T, descSug/100);
+    linhas.push('', promo ? `Refrigerante (complemento): cadastrar ${brl(sr.de)} → cliente paga ${brl(sr.por)}` : `Refrigerante (complemento): ${brl(sr.normal)}`); }
   try { await navigator.clipboard.writeText(linhas.join('\n')); $('msg').textContent='Tabela copiada.'; } catch(e){ $('msg').textContent='Não foi possível copiar neste navegador.'; }
 };
 carregarValores();
