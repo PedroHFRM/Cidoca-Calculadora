@@ -99,6 +99,9 @@
   details.tx summary .ar{margin-left:6px;transition:transform .2s;display:inline-block}
   details.tx[open] summary .ar{transform:rotate(180deg)}
   .badge{white-space:nowrap}
+  .vazio{background:var(--yellow-soft);border:1.5px dashed #e9c300;border-radius:12px;padding:14px 16px;font-size:14px;color:var(--ink);margin-bottom:14px}
+  .vazio b{color:var(--red-dark)}
+  .field input::placeholder{color:#b9b0a4;font-weight:500}
   .mbar{display:none}
   @media (max-width:640px){
     .top .in{padding:12px 14px;gap:12px}
@@ -145,7 +148,7 @@
 
       <div class="sec">Valor líquido</div>
       <label>Valor líquido por salgado</label>
-      <div class="field big"><span>R$</span><input id="liq" type="number" step="0.01" min="0" value="0.80" inputmode="decimal"></div>
+      <div class="field big"><span>R$</span><input id="liq" type="number" step="0.01" min="0" value="" placeholder="0,00" inputmode="decimal"></div>
       <div class="hint">Quanto deve ficar para a Cidoca por unidade, já com custo e margem.</div>
 
       <div class="sec">Item do cardápio</div>
@@ -161,7 +164,7 @@
       </div>
       <div id="refriBox" class="hide">
         <label>Valor líquido do refrigerante</label>
-        <div class="field"><span>R$</span><input id="refri" type="number" step="0.01" min="0" value="5.00" inputmode="decimal"></div>
+        <div class="field"><span>R$</span><input id="refri" type="number" step="0.01" min="0" value="" placeholder="0,00" inputmode="decimal"></div>
         <div class="hint">Quanto deve ficar para a Cidoca pelo refrigerante.</div>
       </div>
 
@@ -183,6 +186,7 @@
     <div class="stack">
       <!-- PREÇO -->
       <section class="tabpane" id="t-preco">
+        <div class="vazio hide"></div>
         <div class="card">
           <h2 id="tituloItem">Preço de venda</h2>
           <p class="lead">Preço a cadastrar no iFood para garantir o valor líquido.</p>
@@ -202,6 +206,7 @@
 
       <!-- PROMO -->
       <section class="tabpane hide" id="t-promo">
+        <div class="vazio hide"></div>
         <div class="card">
           <h2>Sugestão de preços</h2>
           <p class="lead">Para anunciar promoção, o preço de cardápio sobe um pouco. Com o desconto, o cliente vê uma oferta real e a Cidoca continua recebendo o valor líquido.</p>
@@ -238,6 +243,7 @@
 
       <!-- TABELA -->
       <section class="tabpane hide" id="t-tabela">
+        <div class="vazio hide"></div>
         <div class="card">
           <h2 id="tabTitulo">Tabela de preços</h2>
           <p class="lead" id="tabLead"></p>
@@ -281,9 +287,36 @@ function sugestao(liqItem, T, d){
   return {normal, de, por, acima: (de/normal - 1)*100};
 }
 
+const DASH_IDS = ['kRed','kMin','kUn','sNormal','sDe','sPor','sTag','pPromo','pUn','dMax','mbPreco','mbPromo'];
+const SUB_IDS = ['kRedSub','kUnSub','sNormalSub','sPromoSub','pPromoSub','pUnSub','dMaxSub','tabLead'];
+function faltando(){
+  const falta = [];
+  if (!(num('liq') > 0)) falta.push('o <b>valor líquido por salgado</b>');
+  if (combo && !(num('refri') > 0)) falta.push('o <b>valor líquido do refrigerante</b>');
+  return falta;
+}
+function mostrarVazio(falta){
+  const msg = 'Para calcular, preencha ' + falta.join(' e ') + ' em Parâmetros.';
+  document.querySelectorAll('.vazio').forEach(el => { el.innerHTML = msg; el.classList.remove('hide'); });
+  DASH_IDS.forEach(id => $(id).textContent = '—');
+  SUB_IDS.forEach(id => $(id).textContent = '');
+  ['sAlerta','pAlerta'].forEach(id => $(id).className = 'alert hide');
+  ['tabComp','tabDesc','tabQtd'].forEach(id => $(id).innerHTML = '');
+  $('formula').textContent = 'Preço = líquido desejado ÷ (1 − taxas)';
+  $('pUn').style.color = '';
+  linhasTab = [];
+}
+function salvarValores(){ try { localStorage.setItem('cidocaValores', JSON.stringify({liq:$('liq').value, refri:$('refri').value, imp:$('imp').value})); } catch(e){} }
+function carregarValores(){ try { const v = JSON.parse(localStorage.getItem('cidocaValores')||'null'); if (v){ if (v.liq) $('liq').value=v.liq; if (v.refri) $('refri').value=v.refri; if (v.imp) $('imp').value=v.imp; } } catch(e){} }
+
 function render(){
   const T = taxa(), q = qtd(), v = num('liq'), rf = refri(), liqItem = v*q + rf;
-  $('totTaxa').textContent = pct(T*100); $('totTaxaS').textContent = pct(T*100); $('impTxt').textContent = pct(num('imp'));
+  $('totTaxa').textContent = pct(T*100);
+  salvarValores();
+  $('mbNome').textContent = nomeQ(q) + (combo ? ' + refrigerante' : '');
+  const falta = faltando();
+  if (falta.length){ $('totTaxaS').textContent = pct(T*100); $('impTxt').textContent = pct(num('imp')); mostrarVazio(falta); return; }
+  document.querySelectorAll('.vazio').forEach(el => el.classList.add('hide')); $('totTaxaS').textContent = pct(T*100); $('impTxt').textContent = pct(num('imp'));
   const valido = T < 1;
   const Pmin = precoPara(liqItem, T), R = up10(Pmin);
   const nome = nomeQ(q) + (combo ? ' + refrigerante' : '');
@@ -384,9 +417,11 @@ $('usarNormal').onclick = e => { e.preventDefault(); const T=taxa(); $('pCheio')
 $('usarPromo').onclick = e => { e.preventDefault(); resetSim(); $('desc').value = descSug; render(); };
 document.querySelectorAll('input').forEach(el => { if (el.id!=='pCheio') el.addEventListener('input', render); });
 $('copiar').onclick = async () => {
+  if (!linhasTab.length){ $('msg').textContent='Preencha os parâmetros primeiro.'; return; }
   const txt = ['Item\tPreço normal\tPromo: de\tPromo: por'].concat(linhasTab.map(r=>[r[0],brl(r[1]),brl(r[2]),brl(r[3])].join('\t'))).join('\n');
   try { await navigator.clipboard.writeText(txt); $('msg').textContent='Tabela copiada.'; } catch(e){ $('msg').textContent='Não foi possível copiar neste navegador.'; }
 };
+carregarValores();
 render();
 </script>
 </body>
